@@ -1,0 +1,99 @@
+---
+title: 'Math 189 Homework 2: Exploratory Data Analysis of mtcars'
+author: "Yunchun Pan, Siqing Lyu, Nathan Ng, Pudan Xu"
+date: "1/18/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Introduction
+In this homework, we examine the Motor Trend Car Road Tests dataset **mtcars.csv**[^1]. The file contains data extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models). This dataset has the following 11 variables:
+
+- **mpg**: Miles per gallon 
+- **cyl**: Number of cylinders
+- **disp**: Displacement(cubic inch)
+- **hp**: Gross horsepower
+- **drat**: Rear axle ratio
+- **wt**: Weight
+- **qsec**: 1/4 mile time
+- **vs**: Engine (0 = V-shaped, 1 = straight)
+- **am**: Transmission (0 = automatic, 1 = manual)
+- **gear**: Number of forward gears
+- **carb**: Number of carburetors
+
+## Our Work
+
+We first load the Motor Trend Car Road Tests dataset into R to get the data we use throughout this assignment. 
+```{r}
+mtcars <- read.csv("~/Desktop/ma189/Data/mtcars.csv")
+```
+
+After we load in our dataset, we calculate sample mean and sample variance of each variable and store them into matrices to be $M_m$ and $M_{v}$ respectively.
+```{r}
+ncols = dim(mtcars)[2]
+varMean <- colMeans(mtcars[,2:ncols])
+Mm <-t(as.matrix(varMean))
+Mm <- Mm[1,]
+Mm
+Mv <- Mm
+for (i in 2:dim(mtcars)[2]) {
+  Mv[i-1] = var(mtcars[,i])
+}
+Mv
+
+```
+
+Then, we calculate the sample variance-covariance matrix and the sample correlation matrix and store the result into matrices $M_{vc}$ and $M_{cor}$ respectively.
+```{r}
+Mvc <- var(mtcars[,2:ncols])
+Mvc
+Mcor <- cor(mtcars[,2:ncols])
+Mcor
+```
+
+Next, we draw a scatter plot of weights of automobiles and their mileage per gallon. This plot shows a negative association between these two variables. As automobile weight increases, its mileage per gallon decreases. The range of automobile weights is approximately 4, while the range of mileage per gallon is about 24. There are three heavier automobiles in the dataset, and their data points are shown in the lower right corner of the plot.
+```{r}
+plot(x = mtcars$wt, y = mtcars$mpg,
+     xlab = "wt (Weight)", ylab = "mpg (Miles per gallon)",	 
+     main = "Weight vs Miles per Gallon")
+```
+
+In addition, we apply log transformation of wt and mpg and create a scatter plot of log-transformed values. This plot shows that the log transformed weights and mileage per gallon have a more linear negative relationship than original weights and mpg. The variance of these transformed data points is smaller than that of original ones.
+```{r}
+x <- log(mtcars[,c("wt","mpg")])
+plot(x[,1],x[,2],xlab = "logged wt (Weight)", ylab = "logged mpg (Miles per gallon)",	 
+     main = "Weight vs Miles per Gallon (Log Transformation)")
+```
+
+Then, we use a 3D scatter plot to show the relationship between wt (Weight), mpg (Miles per gallon), and cyl (Number of cylinders) of automobiles. When we plot the three variables against each other, data points are split into three distinct clusters based on the number of cylinders. This includes automobiles with 4, 6, and 8 cylinders, which is not surprising since these are the most common number of cylinders found in automobiles. There is also a negative relationship between weight and mpg that is shared by the three clusters, where the greater the weight of an automobile, the lower the mpg. This is the same relationship we find in our previous 2D scatter plots of weight and mpg for all observations. 
+```{r}
+library("scatterplot3d")
+scatterplot3d(x = mtcars$wt, y = mtcars$mpg, z = mtcars$cyl,
+              xlab = "wt (Weight)", ylab = "mpg (Miles per gallon)",
+              zlab = "cyl (Number of cylinders)",
+              main = "Plot of Automobile Weight, Miles per Gallon, and Number of Cylinders",
+              color="red", pch=20, angle=220)   
+```
+
+We also create a 3D scatter plot of the log transformations of the three variables to better analyze the data. Similar to the 3D scatter plot of the raw data of the three variables, we see three clusters of data points based on the three different counts of cylinders. There is also a similar negative relationship between the weight and mpg of the automobile. 
+```{r}
+scatterplot3d(x = log(mtcars$wt), y = log(mtcars$mpg), z = log(mtcars$cyl),
+              xlab = "logged wt (Weight)", ylab = "logged mpg (Miles per gallon)",
+              zlab = "logged cyl (Number of cylinders)",
+              main = " Plot of Logged Weight, Miles per Gallon, and Number of Cylinders",
+              color="steelblue", pch=20, angle=220)       
+```
+Although an engineer suggests that the relationship between the weight and mpg of an automobile is subject to its number of cylinders, our plots suggest that the number of cylinder has little to no effect on the weight and mpg relationship. As we see in both 3D scatterplots, data points are split into three clusters based on the discrete number of cylinders an automobile can have. Despite this, all three clusters in both plots share a similar negative relationship between the weight and mpg of the automobile. Since all three clusters have a similar relationship and do not differ based on the number of cylinders an automobile had, we believe that the relationship between the weight and mpg of an automobile is not subject to its number of cylinders. 
+
+Here, we draw pairwise scatter plots for all variables. Since the first column of mtcars dataset contains automobiles' names and they are not quantitative data, we ignore the first column and make pairwise graphs of the other 11 columns. From the matrix graph below, we find that paired scatterplots for disp, hp, drat, gear, and carb are skewed, while plots of mpg vs wt and mpg vs qsec are approximately normal.
+```{r}
+ncols = dim(mtcars)[2]
+pairs(mtcars[,2:ncols], pch=20, main="Scatterplot Matrix of mtcars Dataset")
+```
+
+## Conclusion:
+By performing exploratory analysis of mtcars dataset, we find a negative relationship between automobile weights and mileage per gallon. Applying log transformation of these two variables, we find a more linear negative relationship between these two features, and the transformed data points have less variance and are more normal. When we include the number of cylinders as a feature to create a 3D scatter plot, we observe three clusters in our plots based on the number of cylinders. This is not surprising since automobiles often have either 4, 6, or 8 cylinders. Within those clusters, we also observe a negative relationship between the weight and mpg of an automobile, similar with what we see in the 2D scatter plot. We also include a 3D scatter plot of the log transformation of the three variables. From the plot, we also see very similar clustering and negative relationships between weights and mpg among all three clusters. To explore relationship between all 11 variables, we plot their paired scatter plots. The resulting paired scatterplots for disp, hp, drat, gear, and carb are skewed, while plots of mpg vs wt and mpg vs qsec are approximately normal. In response to the engineer's suggestion that the relation between an automobile's weight and mpg is dependent on the number of cylinders, our 3D scatter plots show that the relationship between weight and mpg is still negative and similar among automobiles with different number of cylinders. This leads us to believe that the relationship between an automobile's weight and mpg is not affected by the number of cylinders the automobile has, and thus we do not accept the engineer's claim. 
+
+[^1]: Source: The Motor Trend automobiles data are presented in *Building Multiple Regression Models Interactively* from *Biometrics* by Harold V. Henderson and Paul F. Velleman (1981). 

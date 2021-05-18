@@ -1,0 +1,84 @@
+---
+title: "Math 189 Homework 1"
+author: "Yunchun Pan, Siqing Lyu, Nathan Ng, Pudan Xu"
+date: "1/7/2021"
+output: pdf_document
+
+---
+
+## Introduction
+In our first group report, we loaded in a dataset *babies.dat*[^1] about baby weight and gestation information collected from the CHDS and performed matrix manipulations based on the data. We used R to load our dataset and select three columns **bwt**, **age**, **weight**, as well as find the transpose of a matrix formed from the last rows of the dataset. We also calculated the product of the transpose of the matrix and the matrix itself and calculated its inverse and trace, and proved that the resulting matrix was a positive definite matrix. 
+
+## Metadata for *babies.dat*
+
+- **bwt**:		Baby’s weight at birth, to the nearest ounce
+- **gestation**:	Duration of the pregnancy in days, calculated from the first day of the last normal menstrual period.
+- **parity**:		Indicator for whether the baby is the first born (1) or not (0).
+- **age**:		Mother’s age at the time of conception, in years
+- **height**:		Height of the mother, in inches
+- **weight**:		Mother’s prepregnancy weight, in pounds
+- **smoking	Indicator**: for whether the mother smokes (1) or not (0).
+
+
+## Our Work
+
+We first load in the baby dataset into R to get the data we use throughout this assignment. 
+```{r}
+baby <- read.table("~/Desktop/ma189/Data/babies.dat", header=TRUE)
+```
+
+After we load in our dataset, we select the columns **bwt**, **age**, and **weight** from our dataset to filter out irrelevant data. We also check the first couple of rows in these selected columns to check if we get the results we want. 
+```{r}
+head(baby[, c("bwt", "age", "weight")])
+```
+
+After we selected the three relevant columns, we create a matrix based on the information from the last five rows or records, and assign this to ${\bf X}$.
+```{r}
+rows = dim(baby)[1]
+X <- as.matrix(baby[seq(rows - 4, rows), c("bwt", "age", "weight")])
+X
+```
+
+Using the ${\bf X}$ we just created, we now assign A to be the matrix multiplication of the transpose of ${\bf X}$ times ${\bf X}$, or ${\bf A} = {\bf X}^{\prime} \, {\bf X}$. 
+```{r}
+A <- t(X) %*% X
+A
+```
+
+Then we calculate the inverse of ${\bf A}$, or ${\bf A}^{-1}$, and assign the inverse to A_inv.
+```{r}
+A_inv = solve(A)
+A_inv
+```
+
+We compute and display the trace of the matrix A, which gives us a result of 155098. 
+```{r}
+sum(diag(A))
+```
+
+To prove whether A is a positive definite matrix, we need to show that all eigenvalues of A are positive. 
+Here, we find the eigenvalues of A through R and check if all eigenvalues are strictly greater than zero. 
+```{r}
+eig <- eigen(A)
+eig
+```
+The results show that A's eigenvalues are 154439.3314, 536.5750, and 122.0937 and they are all positive. According to fact[^2] that a symmetric nxn dimensional matrix is positive definite if and only if all of its eigenvalues are positive, we can conclude that ${\bf A}$ is a positive definite matrix.
+
+We also write an function called positive_definite that inputs a matrix, checks if all of its eigenvalues are positive, and outputs an statement that indicates whether the matrix is positive definite or not.
+```{r}
+positive_definite = function(matrix) {
+  eigvals <- eigen(matrix)$values
+  if(sum(eigvals > 0) == length(eigvals)) {
+      return ("A is positive definite")
+  } else {
+      return ("A is not positive definite")
+  }
+}
+```
+
+The output of function shows that matrix A is positive definite and it matches our observations above. 
+```{r}
+positive_definite(A)
+```
+[^1]: Source: The Child Health and Development Studies (CHDS) data are presented in Stat Labs: Mathematical Statistics Through Applications by Deborah Nolan and Terry Speed (Springer).
+[^2]: Math 189 Lecture 2

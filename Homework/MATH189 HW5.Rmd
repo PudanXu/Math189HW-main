@@ -1,0 +1,205 @@
+---
+title: 'Math 189 Homework 5: Data Analysis of Auto Mileage'
+author: "Yunchun Pan, Siqing Lyu, Nathan Ng, Pudan Xu"
+date: "2/16/2021"
+output: pdf_document
+---
+
+## Introduction
+In this homework, we examine the Auto dataset[^1] from the ISLR package[^2]. We develop a model to predict whether a given car gets high or low gas mileage based on the features of this car. The Auto dataset has 392 observations of automobiles and each observation has the following variables:
+
+- **cylinders**: Number of cylinders between 4 and 8
+- **displacement**: Engine displacement(cubic inches)
+- **horsepower**: Engine horsepower
+- **weight**: Vehicle weight(lbs.)
+- **acceleration**: Time to accelerate from 0 to 60 mph(sec.)
+- **year**: Model year(modulo 100)
+- **origin**: Origin of car(1 = American, 2 = European, 3 = Japanese)
+- **name**: Vehicle name
+- **mpg**: Miles per gallon 
+
+In order to determine whether a car has high or low gas mileage, we use the median mpg of all cars to create a binary variable based on whether the car has higher or lower mpg than the median. Then, we explore the data using boxplots and chi-square test of independence to investigate the association between the high and low mpg and the other variables in the Auto dataset. Using the variables that are strongly associated with high and low mpg, we split the data into a training and test set and perform Linear Discriminant Analysis on the training set. In the end, we use the resulting linear discriminant function to predict whether a car has good or bad mileage for all test data and discuss the results in terms of the proportion of correctly and incorrectly classified records.
+
+## Our Work
+We first load the Auto dataset from ISLR package into R to get the data we use throughout this assignment and save it into **auto**. Then, we display its top 6 rows.
+```{r}
+library(ISLR)
+data(Auto)
+auto <- Auto
+head(Auto)
+```
+
+After we load in the Auto dataset, we find the median of all cars' mileage, **median_mpg**. Comparing mpg values with **median_mpg**, we create a binary variable, **mpg01**, that contains 1 if mpg has a value above the median **median_mpg**, and 0 if mpg contains a value below **median_mpg**. As shown by the first 6 rows of the updated Auto dataset, mpg values are all below the median 22.75, hence mpg01 values are all 0.
+```{r}
+median_mpg = median(Auto$mpg)
+Auto$mpg01 <- as.numeric(Auto$mpg > median_mpg)
+cat("Median value of mpg:", median_mpg)
+head(Auto[, c('mpg', 'mpg01')])
+```
+
+Here, we create boxplots to investigate the association between mpg01 and other features. All of these factors seem to be very useful in predicting mpg01. The boxplot of mpg01 and year shows that fuel-efficient cars whose mileage are above the median were generally made later than fuel-inefficient cars that have mileage below the median. Moreover, fuel-efficient cars generally have fewer cylinders and hence weigh less than fuel-inefficient cars. Fuel-efficient cars also have fewer displacement and horsepower but accelerate faster than fuel-inefficient cars.
+```{r}
+par(mfrow=c(2, 3))
+boxplot(cylinders ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. cylinders')
+
+boxplot(displacement ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. displacement')
+
+boxplot(horsepower ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. horsepower')
+
+boxplot(weight ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. weight')
+
+boxplot(acceleration ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. acceleration')
+
+boxplot(year ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. year')
+
+```
+
+Here, we create the boxplot of **mpg01** and **origin** and count the number of fuel-efficient and fuel-inefficient cars that were made in America, Europe, and Japan. As the dataframe and the boxplot below show, most fuel-inefficient cars were made in America and only 23 cars were made in Europe and Japan. Similarly, most fuel-efficient cars were made in America, but approximately same number of such cars were made in Japan and slightly fewer cars were made in Europe.
+```{r}
+library(plyr)
+data.frame("origin" =c(1,2,3),
+           "mpg01_1_freq"=count(Auto[Auto$mpg01==1,],vars = "origin")[,2],
+           "mpg01_0_freq"=count(Auto[Auto$mpg01==0,],vars = "origin")[,2])
+
+boxplot(origin ~ mpg01, data=Auto,
+        col=c("red","blue"), main='mpg01 v.s. origin')
+```
+
+Moreover, we perform a chi-square test of independence to test whether there is a an association between the categories of **origin** and **mpg01**. The null hypothesis is that the categories of **origin** and **mpg01** are independent, while the alternative hypothesis is that there is an association between the categories of **origin** and **mpg01**. At the significance level of 0.05, if the p value is larger than or equal to 0.05, we fail to reject the null hypothesis that these two categorical variables are independent and hence **origin** is not useful for predicting **mpg01**. Otherwise, we reject the null hypothesis and **origin** is helpful for predicting **mpg01**.
+```{r}
+cat("The significance level:", 0.05)
+chisq.test(Auto$mpg01, Auto$origin)['p.value']
+```
+Since the p value of this test is 4.18255e-25 and it is significantly less than 0.05, we reject the null hypothesis that the categorical variables **origin** and **mpg01** are independent, and there are clear evidences for us to conclude that there is a significant association between the categories of **origin** and **mpg01**. Hence, **origin** is very helpful for predicting **mpg01**.
+
+Here, we split the Auto dataset into fuel-efficient car subset **mpg.good** and fuel-inefficient car subset **mpg.bad**. After exploring dimensions of these two subsets, we find that they both have 192 observations. Then, we take the first 150 observations from each subset and combine them into a training dataset **auto.train** of 300 observations, and we combine the remaining 92 observations in both subsets into a test set **auto.test**. **n_good** and **n_bad** store the number of fuel-efficient and fuel-inefficient cars in the training set.
+```{r}
+mpg.good <- Auto[Auto$mpg01 == 1,]
+mpg.bad <- Auto[Auto$mpg01 == 0,]
+cat("Number of fuel_efficient cars:", dim(mpg.good)[1])
+cat("Number of fuel_inefficient cars:", dim(mpg.bad)[1])
+
+auto.train <- rbind(mpg.good[1:150,],mpg.bad[1:150,])
+auto.test <- rbind(mpg.good[151:dim(mpg.good)[1],],
+                   mpg.bad[151:dim(mpg.bad)[1],])
+n_good <- 150
+n_bad <- 150
+
+#Prior: relative sample size in train data
+p_good <- n_good/300
+p_bad <- n_bad/300
+```
+
+We proceed to perform Linear Discriminant Analysis on the training data in order to predict **mgp01** using 7 variables that seem most associated with **mgp01**, which are **cylinders**, **displacement**, **horsepower**, **weight**, **acceleration**, **year**, and **origin**. We start by calculating sample mean vectors **Mean_good** and **Mean_bad** that contain means of 7 factors of fuel-efficient and fuel-inefficient cars.
+```{r}
+Mean_good <- colMeans(auto.train[auto.train$mpg01 == 1,2:8])
+Mean_bad <- colMeans(auto.train[auto.train$mpg01 == 0,2:8])
+
+rbind(Mean_good,Mean_bad)
+```
+
+Then, we calculate the pooled sample covariance of those 7 variables in the training set **auto.train** and save the result into **s_pooled**.
+```{r}
+S_good <- cov(auto.train[auto.train$mpg01 == 1,2:8])
+S_bad <- cov(auto.train[auto.train$mpg01 == 0,2:8])
+
+S_pooled <- ((n_good-1)*S_good+(n_bad-1)*S_bad)/(n_good+n_bad-2)
+S_pooled
+```
+
+Here, we calculate the intercepts of the Linear Discriminant Function.
+```{r}
+S_inv <- solve(S_pooled)
+alpha_good <- -0.5* t(Mean_good) %*% S_inv %*% Mean_good + log(p_good)
+alpha_bad <- -0.5* t(Mean_bad) %*% S_inv %*% Mean_bad + log(p_bad)
+
+alpha_auto <- c(alpha_good,alpha_bad)
+alpha_auto
+```
+
+Next, we calculate the slope coefficients of each variable that seem most associated with **mpg01** for both good mpg vehicles and bad mpg vehicles. 
+```{r}
+beta_good <- S_inv %*% Mean_good
+beta_bad <- S_inv %*% Mean_bad
+
+beta_auto <- cbind(beta_good,beta_bad)
+beta_auto
+```
+
+After calculating the intercepts and slopes necessary for our linear discriminant function, we plot out the function values for each observation in our test dataset. The following scatterplots are our results. For each of the $92$ test records $\underline{x}$, we plot $\widehat{d}_k^L (\underline{x})$ for $k = 1, 2$. These are plotted on axes for good mpg ($k=1$) and bad mpg ($k=2$). There is a very strong positive linear relationship between the two values and there does not seem to be any clear clusters of data in the first scatterplot. 
+```{r}
+prediction <- c()
+d_good_vec <- c()
+d_bad_vec <- c()
+d_virginica_vec <- c()
+label <- c(1, 0)
+
+for(i in 1:nrow(auto.test)){
+    #Read an observation in test data
+    x <- t(auto.test[i,2:8])
+    
+    #Calculate linear discriminant functions for each 
+    d_good <- alpha_good + t(beta_good) %*% x
+    d_bad <- alpha_bad + t(beta_bad) %*% x
+
+    #Classify the observation to the class with highest function value
+    d_vec <- c(d_good, d_bad)
+    prediction <- append(prediction, label[which.max( d_vec )])
+    
+    d_good_vec <- append(d_good_vec, d_good)
+    d_bad_vec <- append(d_bad_vec, d_bad)
+}
+
+#Combine the predicted results to the test dataset.
+auto.test$prediction <- prediction
+
+plot(x = d_good_vec, y = d_bad_vec, xlab = "d_good", ylab = "d_bad", 
+              col="red", pch=19)
+```
+
+In the second scatterplot, we color the records according to their true labels: red square for good mpg cars and blue triangle for bad mpg cars. By differentiating two different groups with different shapes and colors, we can observe how the two different groups might cluster together. There does not seem to be any clear clusters between the two true groups of good and bad mpg cars. Both observations with true good mpg and true bad mpg all seem to overlap one another in a positive linear relationship. It is difficult to determine which observations are in the good mpg group and which are in the bad mpg group without differentiating the points. 
+```{r}
+plot(x = d_good_vec, y = d_bad_vec, 
+              xlab = "d_good", ylab = "d_bad",	
+              col=c("red","blue"), pch=c(15,17))
+```
+
+The table below shows the results of our linear discriminant analysis. It includes all data of the original Auto test set and the predictions that our linear discriminant analysis make. A prediction of 1 indicates that the vehicle has good mpg, while a prediction of 0 indicates that the vehicle has bad mpg. We also find the number of correct predictions of good mpg vehicles and bad mpg vehicles and store them into **good_true** and **bad_true**.
+```{r}
+good_true <- sum((auto.test$mpg01 == 1) & (auto.test$prediction == 1))
+bad_true <- sum((auto.test$mpg01 == 0) & (auto.test$prediction == 0))
+auto.test
+```
+
+After predicting whether each vehicle in our test set has good or bad mpg, we sum up the total number of cars in each group and create a summary table shown below. The table includes the total number of vehicles with good mpg and bad mpg, as well as the number of good and bad mpg vehicles that are correctly and incorrectly predicted. 
+```{r}
+class_tab <- c(dim(mpg.good)[1]-n_good,
+               dim(mpg.bad)[1]-n_bad)
+class_tab <- rbind(class_tab,
+       c(good_true,bad_true))
+class_tab <- rbind(class_tab,class_tab[1,] - class_tab[2,])
+colnames(class_tab) <- c("good","bad")
+rownames(class_tab) <- c("Number Observations","Number Correct","Number Wrong")
+class_tab
+```
+
+As we see from the table above, the linear discriminant analysis we perform on our test set correctly predicts whether the car has good mpg or bad mpg for the majority of test data observations. Using the seven variables we find to be highly associated with mpg01, we correctly classify 75 of the test data observations from a total of 92. This gives our linear discriminant function an accuracy of 81.522%, or 75/92. But, our linear discriminant function predicts the good mpg vehicles more accurately than the bad mpg vehicles. The prediction result has a proportion of 45/46 correctly predicted out of all good mpg vehicles in the test set, while it only has a proportion of 30/46 correctly predicted out of all bad mpg vehicles. In addition, wrong prediction porportion of true bad mpg cars is significantly higher than that of true good mpg cars. The linear discriminant function only incorrectly classifies 1/46 true good mpg vehicles in our test set, while it incorrectly classifies 16/46 true bad mpg vehicles in our test set.
+
+## Conclusion: 
+First we create a binary variable, mgp01, that contains 1 if mpg contains a value above its median, and a 0 if mpg contains a value below its median. Then we create boxplots to investigate the association between mpg01 and cylinders, displacement, horsepower, weight, acceleration, and year respectively. Based on the results, we find that the boxplot of mpg01 and year shows that fuel-efficient cars whose mileage are above the median were generally made later than fuel-inefficient cars that have mileage below the median. Moreover, fuel-efficient cars generally have fewer cylinders and hence weigh less than fuel-inefficient cars. Fuel-efficient cars also have fewer displacement and horsepower but accelerate faster than fuel-inefficient cars. Hence, all of these factors seem to be very useful in predicting mpg01.
+
+Also, we create the boxplot of mpg01 and origin and count the number of fuel-efficient and fuel-inefficient cars that were made in America, Europe, and Japan. The result shows that most fuel-inefficient cars were made in America and only 23 cars were made in Europe and Japan. Similarly, most fuel-efficient cars were made in America, but approximately same number of such cars were made in Japan and slightly fewer cars were made in Europe. Then we perform a chi-square test of independence to test whether there is a an association between the categories of origin and mpg01. The null hypothesis is that the categories of origin and mpg01 are independent, while the alternative hypothesis is that there is an association between the categories of origin and mpg01. Since p-value is less than 0.05, we reject the null hypothesis that the categorical variables origin and mpg01 are independent, and there are clear evidences for us to conclude that there is a significant association between the categories of origin and mpg01. Hence, origin is very helpful for predicting mpg01.
+
+Next, we split the data into a training set of size 300 and a test set of size 92. We proceed to perform Linear Discriminant Analysis on the training data in order to predict mgp01 using 7 variables that seem most associated with mgp01, which are cylinders, displacement, horsepower, weight, acceleration, year, and origin. In the scatterplots we make for each observation in test set, there does not seem to be any clear clusters between the two true groups of good and bad mpg cars. Both observations with true good mpg and true bad mpg all seem to overlap one another in a positive linear relationship. It is difficult to determine which observations are in the good mpg group and which are in the bad mpg group without differentiating the points.
+
+We then sum up the total number of vehicles with good mpg and bad mpg, as well as the number of good and bad mpg vehicles that are correctly and incorrectly predicted. The linear discriminant analysis we perform on our test set correctly predicts whether the car has good mpg or bad mpg for the majority of test data observations. Using the seven variables we find to be highly associated with mpg01, we correctly classify 75 of the test data observations from a total of 92. This gives our linear discriminant function an accuracy of 81.522%, or 75/92. But, our linear discriminant function predicts the good mpg vehicles more accurately than the bad mpg vehicles. The prediction result has a proportion of 45/46 correctly predicted out of all good mpg vehicles in the test set, while it only has a proportion of 30/46 correctly predicted out of all bad mpg vehicles. In addition, wrong prediction proportion of true bad mpg cars is significantly higher than that of true good mpg cars. The linear discriminant function only incorrectly classifies 1/46 true good mpg vehicles in our test set, while it incorrectly classifies 16/46 true bad mpg vehicles in our test set.
+
+[^1]: Source: This dataset was taken from the StatLib library which is maintained at Carnegie Mellon University. The dataset was used in the 1983 American Statistical Association Exposition.
+
+[^2]: References: James, G., Witten, D., Hastie, T., and Tibshirani, R. (2013) An Introduction to Statistical Learning with applications in R, www.StatLearning.com, Springer-Verlag, New York

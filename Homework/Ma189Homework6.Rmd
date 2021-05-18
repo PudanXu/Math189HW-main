@@ -1,0 +1,148 @@
+---
+title: "Math 189 Homework 6: Linking Baby Features to Smoking"
+author: "Yunchun Pan, Siqing Lyu, Nathan Ng, Pudan Xu"
+date: "2/23/2021"
+output: pdf_document
+---
+
+## Introduction
+In this assignment, we examine the relationship between characteristics of babies and their mothers and their smoking status, using the Baby data set **babies.dat**[^1]. We develop a logistic regression model to predict whether the mother is a smoker or a non-smoker based on the baby's and the mother's characteristics that are most likely to be associated with the mother's smoking status. The Baby dataset has 1236 observations of babies and each observation has the following variables:
+
+- **bwt**: Baby’s weight at birth, to the nearest ounce
+- **gestation**: Duration of the pregnancy in days, calculated from the first day of the last normal menstrual period
+- **parity**:	Indicator for whether the baby is the first born (1) or not (0)
+- **age**: Mother’s age at the time of conception, in years
+- **height**:	Height of the mother, in inches
+- **weight**:	Mother’s prepregnancy weight, in pounds
+- **smoke**: Smoking indicator for whether the mother smokes (1) or not (0); (9) denotes unknown
+  
+In order to determine whether a mother is smoker or not, we first explore the data using boxplots to visually investigate the association between the mothers' smoking status and the other characteristic variables in the baby dataset. Using the variables that are strongly associated with the smoking indicator, we split the data into a training and a testing set and fit a logistic regression on the training set. Afterwards, we estimate the coefficients of fitted model and use them to predict the probabilities of babies having smoking mothers for the testing set. In the end, we discuss the results based on the computed probabilities and some possible applications of our model. 
+
+## Our Work
+We first load the Baby data set into R to get the data we use throughout this assignment and save it into **baby**. There are 1236 observations in **baby**, but 10 observations whose mothers' smoking status are unknown. Because we want to build a model that only predicts whether the mother is a smoker or not, we remove those 10 observations and display the top 6 rows of the updated **baby**.
+```{r}
+baby <- read.csv("../Data/babies.dat", sep="")
+baby <- baby[baby$smoke!=9,]
+head(baby)
+```
+
+Here, we create boxplots for six variables, which are **bwt**, **gestation**, **parity**, **age**, **height**, and **weight**, versus the binary variable **smoke** to visually investigate the association between **smoke** and the other features.
+```{r}
+par(mfrow=c(2, 3))
+boxplot(bwt ~ smoke, data=baby,
+        col=c("red","blue"), main='smoke v.s. bwt')
+boxplot(gestation ~ smoke, data=baby,
+        col=c("red","blue"), main='smoke v.s. gestation')
+boxplot(parity ~ smoke, data=baby, 
+        col=c("red","blue"), main='smoke v.s. parity')
+boxplot(age ~ smoke, data=baby, 
+        col=c("red","blue"), main='smoke v.s. age')
+boxplot(height ~ smoke, data=baby,
+        col=c("red","blue"), main='smoke v.s. height')
+boxplot(weight ~ smoke, data=baby,
+        col=c("red","blue"), main='smoke v.s. weight')
+```
+By observing the above six boxplots, we find that the distributions of birth weights of babies given birth by smoking and non-smoking mothers are different, so it's reasonable to believe **bwt** is associated with **smoke**. Since **parity** is a categorical variable, we decide to perform chi-square test of independence to evaluate if there is an association between the categories of **parity** and **smoke**. Moreover, because there are certain amount of outliers in boxplots of all other variables, we decide to apply some transformations to their data and plot new boxplots to further explore their associations with **smoke**.
+
+Here, we apply log transformation to those variables whose data have some outliers, which are **gestation**, **age**, **height**, and **weight**. Then, we make new boxplots for these transformed variables versus the binary variable **smoke**.
+```{r}
+par(mfrow=c(2, 2))
+boxplot(log(gestation) ~ smoke, data=baby, 
+        col=c("red","blue"), main='smoke v.s. gestation (log mod.)')
+boxplot(log(age) ~ smoke, data=baby, 
+        col=c("red","blue"), main='smoke v.s. age (log mod.)')
+boxplot(log(height) ~ smoke, data=baby, 
+        col=c("red","blue"), main='smoke v.s. height (log mod.)')
+boxplot(log(weight) ~ smoke, data=baby,
+        col=c("red","blue"), main='smoke v.s. weight (log mod.)')
+```
+
+As we can see from the above four boxplots, it's not very obvious that the distribution of these variables are different for **smoke == 0** and **smoke == 1** due to outliers, so we decide to remove outliers from them and check if boxplots with outliers removed would better help us examine the association between these variables and **smoke**.
+```{r}
+par(mfrow=c(2, 2))
+boxplot(log(gestation) ~ smoke, data=baby, outline =  FALSE,
+        col=c("red","blue"), main='smoke v.s. gestation (log mod.)')
+boxplot(log(age) ~ smoke, data=baby, outline =  FALSE,
+        col=c("red","blue"), main='smoke v.s. age (log mod.)')
+boxplot(log(height) ~ smoke, data=baby, outline =  FALSE,
+        col=c("red","blue"), main='smoke v.s. height (log mod.)')
+boxplot(log(weight) ~ smoke, data=baby, outline =  FALSE,
+        col=c("red","blue"), main='smoke v.s. weight (log mod.)')
+```
+As we can see from the above boxplots with outliers removed, it is still not evident that the distribution of these variables are different for **smoke == 0** and **smoke == 1**, so we decide to include all of them as predictors when building our first logistic regression, and then check if there is an association between them and **smoke** by comparing their p-values computed by logistic regression model with the significance level 0.05. 
+
+Here, we perform a chi-square test of independence to test whether there is a an association between the categories of **parity** and **smoke**. The null hypothesis is that the categories of **parity** and **smoke** are independent, while the alternative hypothesis is that there is an association between the categories of **parity** and **smoke**. At the significance level of 0.05, if the p value is larger than or equal to 0.05, we fail to reject the null hypothesis that these two categorical variables are independent and hence **parity** is not useful for predicting **smoke**. Otherwise, we reject the null hypothesis and **parity** is helpful for predicting **smoke**.
+```{r}
+cat("The significance level:", 0.05)
+chisq.test(baby$smoke, baby$parity)['p.value']
+```
+Since the p value of this test is 0.7025691 and it is much larger than 0.05, we fail to reject the null hypothesis that the categorical variables **parity** and **smoke** are independent, and there are clear evidences for us to conclude that there is no association between the categories of **parity** and **smoke**. Hence, **parity** is not helpful for predicting **smoke**.
+
+To predict **smoke** using associated variables, we split the Baby dataset into a training and testing set and build a logistic regression model afterwards. The training set contains 80% observations of baby_0 (**smoke == 0**) and 80% data in baby_1 (**smoke == 1**), and the remaining 20% of data in baby_0 and baby_1 are combined into a testing set. We set the training size to be 80% because we want to provide sufficient information for the logistic regression model to estimate related coefficients before we predict the probability of a baby having a smoking mother.
+```{r}
+baby_1 <- baby[baby$smoke == 1,]
+baby_0 <- baby[baby$smoke == 0,]
+paste("Number of mothers that smoke:", dim(baby_1)[1])
+paste("Number of mothers that do not smoke:", dim(baby_0)[1])
+
+train_size <- 0.8
+
+baby_1_train_size <-floor(dim(baby_1)[1]*train_size)
+baby_0_train_size <-floor(dim(baby_0)[1]*train_size)
+baby_train <- rbind(baby_1[1:baby_1_train_size,],
+                    baby_0[1:baby_1_train_size,])
+baby_test <- rbind(baby_1[(baby_1_train_size+1):dim(baby_1)[1],],
+                   baby_0[(baby_0_train_size+1):dim(baby_0)[1],])
+```
+
+After splitting the data into a training set and testing set, we build a logistic regression using variables whose relationships with **smoke** can not be confirmed due to the lack of statistical evidence. They are baby's birth weight, gestation, mother's weight, age, and height. To determine whether these variables have relationship with the smoking indicator statistically, we fit the model on the training set and observe the coefficients and the corresponding p-value of each variable. At the significance level of 0.05, a p-value being greater than or equal to 0.05 suggests that there is no relationship between the variable and **smoke**, whereas a p-value  being smaller than 0.05 suggests that a relationship does exist between them. 
+```{r}
+all.fit <- glm(smoke~bwt+gestation+weight+age+height,
+               data=baby_train,family=binomial)
+summary(all.fit)
+```
+
+The information above is the result of the logistic regression model that is fitted on training set and built on those five variables. As we can see, only **bwt**, or the baby's birth weight, has a p-value of 1.08e-10 that is significantly less than 0.05, while all other variables included have p-values that are greater than our significance level of 0.05. This suggests that the smoking status of a mother is not dependent on variables other than **bwt**. Thus, we only include birth weight as the predictor of the probability of a baby having a smoking mother.
+```{r}
+all.fit <- glm(smoke~bwt,
+               data=baby_train,family=binomial)
+summary(all.fit)
+```
+The information above is the result of the logistic regression model that is fitted on training set and built on **bwt**. The coefficient corresponding to the birth weight is equal to -0.028422, and the intercept is 3.384721. Its p-value is 3.50e-10 and less than 0.05, so we reject the hypothesis that there is no relationship between **bwt** and **smoke**. 
+
+After fitting the model, we create the following function that uses the intercept and coefficient calculated above to compute the probabilities of babies having smoking mothers for our testing dataset. Again, we only use the baby's birth weight as the predictor because it is the only variable that has association with the smoking status of the mother. 
+```{r}
+pred_all <- function(obs){
+  x <- c(1,obs)
+  pred <- as.numeric(x) %*% all.fit$coefficients
+  pred <- 1/(1+exp(-pred))
+  return(pred)
+}
+```
+
+Then, we use the function defined above to calculate the probability that the mother is a smoker for each observation in the testing dataset. If the probability that the mother is a smoker is greater than 0.5, then we predict that the mother is a smoker. However, if the probability is less than or equal to 0.5, then we predict that the mother is not a smoker. To sum up, our prediction is based on choosing which event, whether the mother is a smoker or a non-smoker, has a higher probability of happening given the prediction results. 
+```{r}
+comp = c(1:dim(baby_test)[1])
+
+for (i in 1:dim(baby_test)[1]) {
+  comp[i] = pred_all(baby_test[i, c('bwt')])
+}
+result <- data.frame("predict prob" = comp, 
+                     "predict result" = as.numeric(comp > 0.5),
+                     "true result" = baby_test$smoke)
+result
+
+cat("Accuracy score:", sum(as.numeric(comp > 0.5) == baby_test$smoke)/length(baby_test$smoke))
+```
+The table above displays predicted probabilities, predictions results made by comparing those probabilities with 0.5, and the true smoking status of mothers. We also calculate the accuracy of our logistic regression model by computing the proportion of the smoking status that are correctly predicted. Our model has an accuracy of 0.597, which means that our model predicts smoking status of 59.7% mothers in the testing set correctly. This score also suggests that our model has a better accuracy than randomly guessing and it is a fairly good predictor for whether the mother is a smoker or not.
+
+## Conclusion
+To determine whether a mother is smoker or not, we first explore the data using boxplots for variables **bwt**, **gestation**, **parity**, **age**, **height**, and **weight**, versus the binary variable **smoke** to visually investigate the association between smoke and the other features. Based on the results, we find that the distributions of birth weights of babies given birth by smoking and non-smoking mothers appear visually to be different, so it’s reasonable to believe **bwt** is associated with **smoke**. Next, we apply log transformation to those variables whose data have some outliers, which are **gestation**, **age**, **height**, and **weight**. Then, we make new boxplots with outliers and without outliers respectively for these transformed variables versus the binary variable smoke. The difference in distributions of these variables in smoking and non-smoking mother groups shown in the boxplots are not evident, so we decide to include all of them as predictors when building our first logistic regression, and then check if there is an association between them and smoke by comparing their p-values computed by logistic regression model with the significance level 0.05. Then we perform a chi-square test of independence to test whether there is an association between the categories of **parity** and **smoke**. The null hypothesis is that the categories of parity and smoke are independent, while the alternative hypothesis is that there is an association between the categories of parity and smoke. Since the p value of this test is 0.7025691 and larger than 0.05, we fail to reject the null hypothesis that the categorical variables parity and smoke are independent, and there are clear evidences for us to conclude that there is no association between the categories of parity and smoke. Hence, parity is not helpful for predicting smoke.
+
+There are 1236 observations in the dataset, but 10 observations whose mothers' smoking status are unknown. Because we want to build a model that only predicts whether the mother is a smoker or not, we remove those 10 observations and then split data into a training set and a test set. The training set contains 80% observations of each of smoking and non-smoking mother groups, and the remaining 20% of data are combined into a testing set. Afterwards, we build a logistic regression using all variables whose relationships with smoke can not be confirmed due to the lack of statistical evidence. They are baby’s birth weight, gestation, mother’s weight, age, and height. To determine whether these variables have relationship with the smoking indicator statistically, we fit the model on the training set and observe the coefficients and the corresponding p-value of each variable. The results show that only baby’s birth weight, has a p-value significantly less than 0.05, while all other variables included have p-values that are greater than our significance level of 0.05. This suggests that the smoking status of a mother is not dependent on variables other than **bwt**. Thus, we only include birth weight as the predictor of the probability of a baby having a smoking mother. What's more, according to the result of the logistic regression model that is fitted on training set and built on bwt, the coefficient corresponding to the birth weight is equal to -0.028422, the intercept is 3.384721, and p-value is less than 0.05, so we reject the hypothesis that there is no relationship between bwt and smoke.
+
+After fitting this new model on the training set, we create a function that uses the intercept and coefficient calculated using predictor **bwt** to compute the probabilities of babies having smoking mothers for our testing dataset. If the probability that the mother is a smoker is greater than 0.5, then we predict that the mother is a smoker, and if the probability is less than or equal to 0.5, then we predict that the mother is not a smoker. In the ned, our model has an accuracy of 0.597, which means that our model predicts smoking status of 59.7% mothers in the testing set correctly. This score also suggests that our model has a better accuracy than randomly guessing and it is a fairly good predictor for whether the mother is a smoker or not.
+
+As for other application of this predictive model, we can investigate the association between diabetes and people's weight, alcohol consumption, height, and age. When it comes to diabetes, the public usually believe that a relationship exists between sugar intake and biabetes. Hence, we can apply this predictive model to analyze the relationships between sugar intake as well as other features whose association with diabetes can not be confirmed due to the lack of statistical evidence. 
+
+[^1]: Source: This dataset is found from http://www.stat.berkeley.edu/users/statlabs/labs.html. It accompanies the excellent text Stat Labs: Mathematical Statistics through Applications Springer-Verlag (2001) by Deborah Nolan and Terry Speed.
